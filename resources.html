@@ -34,7 +34,8 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     async function loadCSV() {
-        const csvUrl = "https://raw.githubusercontent.com/SatvikMiglani/Disaster-Management-Hub/main/webresourcessss.csv";
+        // Updated CSV URL without "refs/heads"
+        const csvUrl = "https://raw.githubusercontent.com/pratham-thakuran/disaster-relief/main/resources.csv";
         try {
             const response = await fetch(csvUrl);
             if (!response.ok) throw new Error("Failed to fetch CSV file");
