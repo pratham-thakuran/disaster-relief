@@ -3,78 +3,368 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Disaster Relief Hub</title>
+  <title>Resource Allocation - Help & Mitigation Center</title>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <style>
-    body { font-family: 'Montserrat', sans-serif; background-color: #f8f8f8; color: #000; margin: 0; padding: 0; }
-    header { background-color: #004080; color: #fff; padding: 15px; text-align: center; position: sticky; top: 0; z-index: 1000; }
-    #csv-data { margin: 20px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #004080; color: white; }
-    #live-map { width: 100%; height: 300px; margin-top: 20px; }
+    /* Base Styles */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Montserrat', sans-serif;
+      background-color: #f2f2f2;
+      color: #333;
+    }
+    
+    /* Header and Navigation */
+    header {
+      background-color: #004080;
+      color: #fff;
+      padding: 15px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+    header h1 {
+      margin: 5px 0;
+      font-size: 32px;
+    }
+    nav ul {
+      list-style: none;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    nav ul li a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 16px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+    nav ul li a:hover,
+    nav ul li a.active {
+      background-color: #003366;
+    }
+    
+    /* Main Container */
+    .container {
+      max-width: 1200px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 10px;
+    }
+    h2 {
+      font-size: 24px;
+      margin: 20px 0 10px;
+      color: #004080;
+      text-align: center;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 10px;
+    }
+    
+    /* Table Styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    th {
+      background-color: #f0f0f0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    tr:hover {
+      background-color: #f9f9f9;
+    }
+    .status-high {
+      background-color: #4CAF50;
+      color: white;
+      font-weight: bold;
+      border-radius: 4px;
+      padding: 4px;
+    }
+    .status-low {
+      background-color: #FFEB3B;
+      color: #333;
+      font-weight: bold;
+      border-radius: 4px;
+      padding: 4px;
+    }
+    .status-critical {
+      background-color: #F44336;
+      color: white;
+      font-weight: bold;
+      border-radius: 4px;
+      padding: 4px;
+    }
+    select {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+    }
+    button {
+      background-color: #0059b3;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-top: 10px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #003366;
+    }
+    
+    /* Loading Indicators */
+    .loading {
+      font-size: 18px;
+      color: #333;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 20px;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #004080;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Footer */
+    footer {
+      background-color: #004080;
+      color: #fff;
+      padding: 15px;
+      text-align: center;
+      margin-top: 20px;
+      font-size: 14px;
+      border-top: 2px solid #003366;
+    }
+    
+    @media (max-width: 768px) {
+      th, td {
+        padding: 8px;
+        font-size: 12px;
+      }
+      header h1 {
+        font-size: 24px;
+      }
+    }
   </style>
+  <script>
+    let userLocation = null;
+    let resourceData = [];
+    const EARTH_RADIUS_KM = 6371;
+    
+    function getUserLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+          userLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          loadCSVData();
+        }, () => {
+          alert("Location access denied. Showing all resources.");
+          loadCSVData();
+        });
+      } else {
+        alert("Geolocation is not supported by your browser.");
+        loadCSVData();
+      }
+    }
+    
+    function loadCSVData() {
+      Papa.parse('https://raw.githubusercontent.com/SatvikMiglani/Disaster-Management-Hub/main/webresourcessss.csv', {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          resourceData = results.data;
+          if (userLocation) {
+            const radius = parseFloat(document.getElementById("radiusFilter").value);
+            resourceData = filterNearbyResources(resourceData, userLocation, radius);
+          }
+          populateTable(resourceData);
+          populateFilterOptions(resourceData);
+        },
+        error: function(error) {
+          console.error('Error loading CSV:', error);
+          alert('Error loading resource data.');
+        }
+      });
+    }
+    
+    function filterNearbyResources(data, userLoc, maxDistance) {
+      return data.filter(resource => {
+        let lat = parseFloat(resource.Latitude);
+        let lon = parseFloat(resource.Longitude);
+        return calculateDistance(userLoc.latitude, userLoc.longitude, lat, lon) <= maxDistance;
+      });
+    }
+    
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      let dLat = toRadians(lat2 - lat1);
+      let dLon = toRadians(lon2 - lon1);
+      let a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return EARTH_RADIUS_KM * c;
+    }
+    
+    function toRadians(degrees) {
+      return degrees * (Math.PI / 180);
+    }
+    
+    function populateTable(data) {
+      let tbody = document.querySelector('#resourceTable tbody');
+      tbody.innerHTML = '';
+      data.forEach(resource => {
+        let id = resource.ID || '';
+        let name = resource.Name || '';
+        let type = resource.Type || '';
+        let address = resource.Address || '';
+        let available = Number(resource.Available_Resource) || 0;
+        let total = Number(resource.Total_Capacity) || 0;
+        let contact = resource.Contact || 'N/A';
+        let percentage = total > 0 ? ((available / total) * 100).toFixed(1) : 'N/A';
+        let statusClass = percentage > 60 ? 'status-high' : percentage >= 30 ? 'status-low' : 'status-critical';
+        let statusText = percentage > 60 ? 'High' : percentage >= 30 ? 'Medium' : 'Low';
+        let additionalinfo = resource.AdditionalInfo || '';
+        let row = `<tr>
+          <td>${id}</td>
+          <td>${name}</td>
+          <td>${type}</td>
+          <td>${address}</td>
+          <td>${available}</td>
+          <td>${total}</td>
+          <td>${percentage}</td>
+          <td class="${statusClass}">${statusText}</td>
+          <td>${contact}</td>
+          <td>${additionalinfo}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+    
+    function populateFilterOptions(data) {
+      let types = new Set(data.map(item => item.Type));
+      let filterDropdown = document.getElementById('filterType');
+      filterDropdown.innerHTML = '<option value="all">All</option>';
+      types.forEach(type => {
+        let option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        filterDropdown.appendChild(option);
+      });
+    }
+    
+    function filterTable() {
+      let selectedType = document.getElementById('filterType').value;
+      let filteredData = selectedType === 'all' ? resourceData : resourceData.filter(item => item.Type === selectedType);
+      populateTable(filteredData);
+    }
+    
+    function sortTable(columnIndex) {
+      let table = document.getElementById("resourceTable");
+      let rows = Array.from(table.rows).slice(1);
+      let sortedRows = rows.sort((rowA, rowB) => {
+        let cellA = rowA.cells[columnIndex].textContent.trim();
+        let cellB = rowB.cells[columnIndex].textContent.trim();
+        return isNaN(cellA) || isNaN(cellB)
+          ? cellA.localeCompare(cellB)
+          : Number(cellA) - Number(cellB);
+      });
+      let tbody = table.querySelector("tbody");
+      tbody.innerHTML = '';
+      sortedRows.forEach(row => tbody.appendChild(row));
+    }
+    
+    window.onload = getUserLocation;
+  </script>
 </head>
 <body>
+  <!-- Header and Navigation -->
   <header>
-    <h1>Disaster Relief Hub</h1>
+    <h1>Resource Availability</h1>
+    <nav>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="map.html">Map</a></li>
+        <li><a href="resources.html" class="active">Resources</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </nav>
+    <button onclick="getUserLocation()">Find Help Nearby</button>
+    <br /><br />
+    <label for="radiusFilter">Filter by Distance:</label>
+    <select id="radiusFilter" onchange="loadCSVData()">
+      <option value="5">5 km</option>
+      <option value="10" selected>10 km</option>
+      <option value="20">20 km</option>
+      <option value="50">50 km</option>
+    </select>
+    <br /><br />
+    <label for="filterType">Filter by Type:</label>
+    <select id="filterType" onchange="filterTable()">
+      <option value="all">All</option>
+    </select>
+    <button onclick="loadCSVData()">Refresh Data</button>
   </header>
-
-  <section>
-    <h2>Nearby Resource Availability</h2>
-    <div id="csv-data">Loading resources...</div>
-    <div id="live-map"></div>
-  </section>
-
+  
+  <!-- Main Content Container -->
+  <div class="container">
+    <h2>Resource Allocation Dashboard</h2>
+    <table id="resourceTable">
+      <thead>
+        <tr>
+          <th onclick="sortTable(0)">ID</th>
+          <th onclick="sortTable(1)">Name</th>
+          <th onclick="sortTable(2)">Type</th>
+          <th onclick="sortTable(3)">Address</th>
+          <th onclick="sortTable(4)">Available</th>
+          <th onclick="sortTable(5)">Total Capacity</th>
+          <th onclick="sortTable(6)">Availability (%)</th>
+          <th>Status</th>
+          <th>Contact</th>
+          <th>Additional Info</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p id="no-resources-text" style="display:none; text-align:center; color: red;">No nearby resources found.</p>
+  </div>
+  
+  <!-- Footer -->
   <footer>
     <p>&copy; 2025 Help & Mitigation Center. All rights reserved.</p>
   </footer>
-
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    async function loadCSV() {
-        // Updated CSV URL without "refs/heads"
-        const csvUrl = "https://raw.githubusercontent.com/pratham-thakuran/disaster-relief/main/resources.csv";
-        try {
-            const response = await fetch(csvUrl);
-            if (!response.ok) throw new Error("Failed to fetch CSV file");
-            const csvText = await response.text();
-            parseCSV(csvText);
-        } catch (error) {
-            console.error("Error loading CSV:", error);
-            document.getElementById("csv-data").innerHTML = "Error loading data.";
-        }
-    }
-
-    function parseCSV(csvText) {
-        const rows = csvText.split("\n").map(row => row.split(","));
-        let tableHtml = "<table><tr>" + rows[0].map(header => `<th>${header}</th>`).join('') + "</tr>";
-        rows.slice(1).forEach(row => {
-            tableHtml += "<tr>" + row.map(cell => `<td>${cell}</td>`).join('') + "</tr>";
-        });
-        tableHtml += "</table>";
-        document.getElementById("csv-data").innerHTML = tableHtml;
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-        loadCSV();
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(position => {
-                var lat = position.coords.latitude;
-                var lon = position.coords.longitude;
-                var map = L.map('live-map').setView([lat, lon], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '© OpenStreetMap'
-                }).addTo(map);
-                L.marker([lat, lon]).addTo(map).bindPopup('You are here.').openPopup();
-            }, error => {
-                console.error("Geolocation error: " + error.message);
-                document.getElementById('live-map').innerHTML = "Unable to retrieve your location.";
-            });
-        }
-    });
-  </script>
 </body>
 </html>
